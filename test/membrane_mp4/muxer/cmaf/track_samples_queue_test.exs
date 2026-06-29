@@ -297,4 +297,24 @@ defmodule Membrane.MP4.Muxer.CMAF.TrackSamplesQueueTest do
       assert queue.target_samples == [buf3]
     end
   end
+
+  describe "collectable_end_timestamp/1" do
+    test "returns -1 for a collectable queue with no target samples (regression: empty target)" do
+      # A queue can become collectable with an empty target group when a non-keyframe
+      # sample whose dts is already past the segment window arrives before anything is
+      # accumulated. Previously this crashed with a KeyError on nil.dts.
+      queue = empty_video_queue() |> with_collectable()
+      assert queue.target_samples == []
+
+      assert Queue.collectable_end_timestamp(queue) == -1
+    end
+
+    test "returns the last target sample's end timestamp when collectable" do
+      buf1 = with_buffer(dts: 10, duration: 5)
+      buf2 = with_buffer(dts: 15, duration: 5)
+      queue = %{empty_video_queue() | collectable?: true, target_samples: [buf1, buf2]}
+
+      assert Queue.collectable_end_timestamp(queue) == buf2.dts + buf2.metadata.duration
+    end
+  end
 end
